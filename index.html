@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NairalandLudo - Ultimate Edition</title>
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --board-base: #f4f4f4;
+            --red: #e74c3c;
+            --green: #27ae60;
+            --yellow: #f1c40f;
+            --blue: #2980b9;
+            --text-color: #ecf0f1;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: radial-gradient(circle at center, #2c3e50, #000);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--text-color);
+            user-select: none;
+        }
+
+        /* --- UI LAYER --- */
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        #confetti-canvas {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 50;
+        }
+
+        .hud-panel {
+            pointer-events: auto;
+            background: rgba(0, 0, 0, 0.85);
+            border: 1px solid #444;
+            padding: 20px;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            width: 320px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        h1 { margin: 0; font-size: 1.8rem; color: var(--green); text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 0 10px rgba(39, 174, 96, 0.5); }
+        .turn-indicator { font-size: 1.1rem; margin-top: 5px; font-weight: bold; display: flex; align-items: center; gap: 10px; }
+        .turn-dot { width: 15px; height: 15px; border-radius: 50%; display: inline-block; box-shadow: 0 0 10px currentColor; }
+
+        #commentary-box {
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(255,255,255,0.05);
+            border-left: 4px solid var(--green);
+            font-style: italic;
+            font-size: 0.9rem;
+            color: #ffd700;
+            min-height: 50px;
+            display: flex; align-items: center;
+        }
+
+        /* --- CONTROLS & 3D DICE --- */
+        #controls {
+            pointer-events: auto;
+            position: absolute;
+            bottom: 30px; right: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 20px;
+        }
+
+        .dice-scene { width: 80px; height: 80px; perspective: 400px; }
+        .dice-cube {
+            width: 100%; height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            transform: rotateX(0deg) rotateY(0deg);
+            transition: transform 1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .dice-face {
+            position: absolute; width: 80px; height: 80px; background: white;
+            border-radius: 12px; box-shadow: inset 0 0 15px #ccc; border: 1px solid #999;
+            display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
+            padding: 8px; box-sizing: border-box;
+        }
+        .dot { background: #333; border-radius: 50%; align-self: center; justify-self: center; width: 12px; height: 12px; box-shadow: inset 0 0 2px black; }
+
+        .face-1 { transform: rotateY(0deg) translateZ(40px); }
+        .face-2 { transform: rotateY(90deg) translateZ(40px); }
+        .face-3 { transform: rotateY(180deg) translateZ(40px); }
+        .face-4 { transform: rotateY(-90deg) translateZ(40px); }
+        .face-5 { transform: rotateX(90deg) translateZ(40px); }
+        .face-6 { transform: rotateX(-90deg) translateZ(40px); }
+
+        .rolling-anim { animation: tumble 0.6s infinite linear; }
+        @keyframes tumble {
+            0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+            100% { transform: rotateX(360deg) rotateY(360deg) rotateZ(360deg); }
+        }
+
+        .btn-roll {
+            background: linear-gradient(135deg, var(--green), #2ecc71);
+            border: none; padding: 15px 40px;
+            color: white; font-size: 1.4rem; font-weight: bold;
+            border-radius: 50px; cursor: pointer;
+            box-shadow: 0 5px 20px rgba(39, 174, 96, 0.6);
+            transition: all 0.2s; text-transform: uppercase;
+        }
+        .btn-roll:hover:not(:disabled) { transform: translateY(-3px) scale(1.05); }
+        .btn-roll:disabled { background: #555; cursor: not-allowed; opacity: 0.5; box-shadow: none; transform: none; }
+
+        /* --- SETUP MODAL --- */
+        #setup-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); z-index: 1000;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .modal-content {
+            background: #222; border: 1px solid #444; padding: 40px; border-radius: 20px;
+            width: 500px; text-align: left; box-shadow: 0 0 60px rgba(39, 174, 96, 0.2);
+        }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; color: #aaa; font-size: 0.9rem; }
+        input[type="text"] { width: 100%; padding: 12px; background: #333; border: 1px solid #555; color: white; border-radius: 6px; box-sizing: border-box;}
+        
+        .mode-select, .ai-select { display: flex; gap: 10px; }
+        .chip { padding: 8px 16px; background: #333; border-radius: 20px; cursor: pointer; border: 1px solid #444; transition: 0.2s; font-size: 0.9rem; }
+        .chip.active { background: var(--green); color: white; border-color: var(--green); font-weight: bold; }
+
+        /* New Multiplayer Selection Styling */
+        .color-picker-multi { display: flex; gap: 10px; margin-top:10px; }
+        .color-check { 
+            flex: 1; padding: 10px; border: 2px solid #444; border-radius: 8px; 
+            cursor: pointer; text-align: center; opacity: 0.5; transition: 0.3s;
+        }
+        .color-check.selected { opacity: 1; border-color: white; transform: scale(1.05); }
+        .color-check span { display: block; width: 20px; height: 20px; border-radius: 50%; margin: 0 auto 5px auto; }
+        
+        /* Single Player Picker */
+        .color-picker-single { display: flex; gap: 15px; }
+        .color-opt { width: 40px; height: 40px; border-radius: 50%; cursor: pointer; border: 3px solid transparent; opacity: 0.6; transition: 0.2s; }
+        .color-opt.selected { border-color: white; opacity: 1; transform: scale(1.2); }
+
+        /* --- 3D SCENE --- */
+        #scene {
+            width: 100vw; height: 100vh;
+            perspective: 1500px;
+            display: flex; justify-content: center; align-items: center;
+            overflow: hidden; cursor: grab;
+        }
+        #scene:active { cursor: grabbing; }
+
+        #board-wrapper {
+            position: relative;
+            transform-style: preserve-3d;
+            transform: rotateX(50deg) rotateZ(0deg);
+            transition: transform 0.1s linear; 
+        }
+
+        .ludo-board {
+            width: 600px; height: 600px;
+            background: var(--board-base);
+            display: grid;
+            grid-template-columns: repeat(15, 1fr);
+            grid-template-rows: repeat(15, 1fr);
+            gap: 2px;
+            padding: 5px;
+            box-shadow: 0 0 0 15px #222, 0 30px 60px rgba(0,0,0,0.8);
+            transform-style: preserve-3d;
+            border-bottom: 20px solid #555; border-right: 20px solid #777;
+        }
+
+        .cell {
+            background: white; position: relative;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 10px; color: #ccc; transform-style: preserve-3d;
+        }
+        
+        .home-area { grid-row: span 6; grid-column: span 6; border: 4px solid rgba(0,0,0,0.1); }
+        .home-red { background: var(--red); }
+        .home-green { background: var(--green); }
+        .home-yellow { background: var(--yellow); }
+        .home-blue { background: var(--blue); }
+
+        .center-area {
+            grid-column: 7 / span 3; grid-row: 7 / span 3;
+            background: var(--green);
+            display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;
+            font-size: 0.7rem; font-weight: bold; color: white;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+            text-transform: uppercase; border: 2px solid white;
+            position: relative; overflow: hidden;
+        }
+        
+        #snake-svg { width: 50px; height: 50px; margin-bottom: 5px; animation: slither 3s infinite ease-in-out; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5)); }
+        @keyframes slither { 0% { transform: translateX(-5px) rotate(-5deg); } 50% { transform: translateX(5px) rotate(5deg); } 100% { transform: translateX(-5px) rotate(-5deg); } }
+
+        .path-red { background: #ffcccc; }
+        .path-green { background: #ccffcc; }
+        .path-yellow { background: #ffffcc; }
+        .path-blue { background: #ccccff; }
+        
+        .safe-star::after { content: '★'; font-size: 20px; color: rgba(0,0,0,0.4); }
+
+        /* Tokens */
+        .token {
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            position: absolute;
+            transform-style: preserve-3d;
+            cursor: pointer;
+            /* CENTER ALIGNMENT FIX: translate -50% ensures coordinate is center of token */
+            transform: translate(-50%, -50%); 
+            transition: top 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), 
+                        left 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 100;
+            box-shadow: 0 5px 10px rgba(0,0,0,0.5);
+        }
+        
+        .token::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; background: inherit; transform: translateZ(-8px); filter: brightness(0.7); }
+        .token::after { content: ''; position: absolute; top: 50%; left: 50%; width: 100%; height: 8px; background: inherit; transform: translate(-50%, -50%) rotateX(90deg) translateY(4px); filter: brightness(0.85); }
+
+        .token.red { background: radial-gradient(circle at 30% 30%, #ff6b6b, #c0392b); border: 1px solid #922b21; }
+        .token.green { background: radial-gradient(circle at 30% 30%, #58d68d, #1e8449); border: 1px solid #196f3d; }
+        .token.yellow { background: radial-gradient(circle at 30% 30%, #f7dc6f, #b7950b); border: 1px solid #9a7d0a; }
+        .token.blue { background: radial-gradient(circle at 30% 30%, #5dade2, #2874a6); border: 1px solid #21618c; }
+
+        .token.active-turn { box-shadow: 0 0 15px white, 0 0 5px white; animation: bounce 1s infinite; z-index: 200; }
+        @keyframes bounce { 0%, 100% { transform: translate(-50%, -50%) translateZ(10px); } 50% { transform: translate(-50%, -50%) translateZ(25px); } }
+
+        /* KICK ANIMATION */
+        .kick-anim { animation: kickOut 0.5s ease-in forwards !important; z-index: 300; }
+        @keyframes kickOut {
+            0% { transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+            50% { transform: translate(-50%, -50%) scale(1.5) rotate(180deg) translateZ(50px); }
+            100% { transform: translate(-50%, -50%) scale(0) rotate(360deg); }
+        }
+
+        /* Celebration Overlays */
+        .overlay-text {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0);
+            font-size: 8rem; font-weight: 900; color: #f1c40f;
+            text-shadow: 0 0 20px var(--red), 0 0 50px white;
+            z-index: 500; pointer-events: none;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            text-align: center; white-space: nowrap;
+        }
+
+    </style>
+</head>
+<body>
+    <canvas id="confetti-canvas"></canvas>
+
+    <div id="setup-modal">
+        <div class="modal-content">
+            <h1>Nairaland<span style="color:white">Ludo</span></h1>
+            
+            <div class="form-group">
+                <label>Game Mode</label>
+                <div class="mode-select">
+                    <div class="chip active" onclick="uiSetMode('ai', this)">Vs AI</div>
+                    <div class="chip" onclick="uiSetMode('multi', this)">Multiplayer (Hotseat)</div>
+                </div>
+            </div>
+
+            <div id="section-ai">
+                <div class="form-group">
+                    <label>Enter Your Monica (Username)</label>
+                    <input type="text" id="player-name-ai" placeholder="e.g. Seun" value="Player 1">
+                </div>
+                <div class="form-group">
+                    <label>Choose Your Colour</label>
+                    <div class="color-picker-single">
+                        <div class="color-opt red selected" onclick="selectAiColor('red', this)" style="background:var(--red)"></div>
+                        <div class="color-opt green" onclick="selectAiColor('green', this)" style="background:var(--green)"></div>
+                        <div class="color-opt yellow" onclick="selectAiColor('yellow', this)" style="background:var(--yellow)"></div>
+                        <div class="color-opt blue" onclick="selectAiColor('blue', this)" style="background:var(--blue)"></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Number of AI Opponents</label>
+                    <div class="ai-select">
+                        <div class="chip" onclick="setAICount(1, this)">1 AI</div>
+                        <div class="chip" onclick="setAICount(2, this)">2 AIs</div>
+                        <div class="chip active" onclick="setAICount(3, this)">3 AIs</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="section-multi" style="display:none;">
+                <label>Select Active Players (Min 2)</label>
+                <div class="color-picker-multi">
+                    <div class="color-check selected" onclick="toggleMultiColor('red', this)" style="background:rgba(231, 76, 60, 0.2)">
+                        <span style="background:var(--red)"></span>Red
+                    </div>
+                    <div class="color-check selected" onclick="toggleMultiColor('green', this)" style="background:rgba(39, 174, 96, 0.2)">
+                        <span style="background:var(--green)"></span>Green
+                    </div>
+                    <div class="color-check" onclick="toggleMultiColor('yellow', this)" style="background:rgba(241, 196, 15, 0.2)">
+                        <span style="background:var(--yellow)"></span>Yellow
+                    </div>
+                    <div class="color-check" onclick="toggleMultiColor('blue', this)" style="background:rgba(41, 128, 185, 0.2)">
+                        <span style="background:var(--blue)"></span>Blue
+                    </div>
+                </div>
+                <div class="form-group" style="margin-top:15px;">
+                    <label>Players take turns on this device.</label>
+                </div>
+            </div>
+
+            <button class="btn-roll" style="width:100%; margin-top:10px;" onclick="startGame()">Start Game</button>
+        </div>
+    </div>
+
+    <div id="ui-layer">
+        <div class="hud-panel">
+            <h1>NairalandLudo</h1>
+            <div class="turn-indicator" id="turn-indicator">
+                <span class="turn-dot" id="turn-dot"></span>
+                <span id="turn-text">Initializing...</span>
+            </div>
+            <div id="commentary-box">Welcome to the board. Roll 6 to begin!</div>
+        </div>
+
+        <div id="main-overlay" class="overlay-text">GBAM! 6!</div>
+
+        <div id="controls">
+            <div class="dice-scene">
+                <div class="dice-cube" id="dice-cube">
+                    <div class="dice-face face-1"><div class="dot" style="grid-area: 2/2;"></div></div>
+                    <div class="dice-face face-2"><div class="dot" style="grid-area: 1/3;"></div><div class="dot" style="grid-area: 3/1;"></div></div>
+                    <div class="dice-face face-3"><div class="dot" style="grid-area: 1/3;"></div><div class="dot" style="grid-area: 2/2;"></div><div class="dot" style="grid-area: 3/1;"></div></div>
+                    <div class="dice-face face-4"><div class="dot" style="grid-area: 1/1;"></div><div class="dot" style="grid-area: 1/3;"></div><div class="dot" style="grid-area: 3/1;"></div><div class="dot" style="grid-area: 3/3;"></div></div>
+                    <div class="dice-face face-5"><div class="dot" style="grid-area: 1/1;"></div><div class="dot" style="grid-area: 1/3;"></div><div class="dot" style="grid-area: 2/2;"></div><div class="dot" style="grid-area: 3/1;"></div><div class="dot" style="grid-area: 3/3;"></div></div>
+                    <div class="dice-face face-6"><div class="dot" style="grid-area: 1/1;"></div><div class="dot" style="grid-area: 1/3;"></div><div class="dot" style="grid-area: 2/1;"></div><div class="dot" style="grid-area: 2/3;"></div><div class="dot" style="grid-area: 3/1;"></div><div class="dot" style="grid-area: 3/3;"></div></div>
+                </div>
+            </div>
+            <button id="roll-btn" class="btn-roll" onclick="humanRoll()">ROLL</button>
+        </div>
+    </div>
+
+    <div id="scene">
+        <div id="board-wrapper">
+            <div class="ludo-board" id="board">
+                <div class="center-area">
+                    <svg id="snake-svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M15 12c-2.5 0-2.5-3-5-3s-2.5 3-5 3"/>
+                        <path d="M10 12c2.5 0 2.5 3 5 3s2.5-3 5-3"/>
+                        <circle cx="20" cy="12" r="1.5" fill="white"/>
+                    </svg>
+                    <div>Lalasticlala<br>Snake Land</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIG & STATE ---
+        const config = {
+            colors: ['red', 'green', 'yellow', 'blue'],
+            map: {
+                red: { startIdx: 0, pathColor: 'path-red', homeGrid: {r:2, c:2}, startNode: 1 },
+                green: { startIdx: 13, pathColor: 'path-green', homeGrid: {r:2, c:11}, startNode: 14 },
+                yellow: { startIdx: 26, pathColor: 'path-yellow', homeGrid: {r:11, c:11}, startNode: 27 },
+                blue: { startIdx: 39, pathColor: 'path-blue', homeGrid: {r:11, c:2}, startNode: 40 }
+            }
+        };
+
+        let gameState = {
+            players: [],
+            turnIndex: 0,
+            diceValue: 0,
+            waitingForMove: false,
+            sixCount: 0,
+            gameOver: false,
+            mode: 'ai'
+        };
+
+        let setup = {
+            aiUserColor: 'red',
+            aiCount: 3,
+            multiColors: ['red', 'green'] // Default selection
+        };
+
+        // --- UI INTERACTION FUNCTIONS ---
+        function uiSetMode(m, el) {
+            gameState.mode = m;
+            document.querySelectorAll('.mode-select .chip').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
+            
+            if(m === 'ai') {
+                document.getElementById('section-ai').style.display = 'block';
+                document.getElementById('section-multi').style.display = 'none';
+            } else {
+                document.getElementById('section-ai').style.display = 'none';
+                document.getElementById('section-multi').style.display = 'block';
+            }
+        }
+
+        function selectAiColor(col, el) {
+            setup.aiUserColor = col;
+            document.querySelectorAll('.color-opt').forEach(d => d.classList.remove('selected'));
+            el.classList.add('selected');
+        }
+
+        function setAICount(n, el) {
+            setup.aiCount = n;
+            document.querySelectorAll('.ai-select .chip').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
+        }
+
+        function toggleMultiColor(col, el) {
+            if(setup.multiColors.includes(col)) {
+                setup.multiColors = setup.multiColors.filter(c => c !== col);
+                el.classList.remove('selected');
+            } else {
+                setup.multiColors.push(col);
+                el.classList.add('selected');
+            }
+        }
+
+        function startGame() {
+            // Validation for Multiplayer
+            if (gameState.mode === 'multi' && setup.multiColors.length < 2) {
+                alert("Please select at least 2 players for Multiplayer.");
+                return;
+            }
+
+            document.getElementById('setup-modal').style.display = 'none';
+            initGameEngine();
+        }
+
+        // --- BOARD GENERATION ---
+        // Coordinates for the path (Global board index 1-52)
+        const pathCoords = [
+            null,
+            {r:7, c:2}, {r:7, c:3}, {r:7, c:4}, {r:7, c:5}, {r:7, c:6}, 
+            {r:6, c:7}, {r:5, c:7}, {r:4, c:7}, {r:3, c:7}, {r:2, c:7}, {r:1, c:7}, 
+            {r:1, c:8}, {r:1, c:9}, 
+            {r:2, c:9}, {r:3, c:9}, {r:4, c:9}, {r:5, c:9}, {r:6, c:9}, 
+            {r:7, c:10}, {r:7, c:11}, {r:7, c:12}, {r:7, c:13}, {r:7, c:14}, {r:7, c:15}, 
+            {r:8, c:15}, {r:9, c:15}, 
+            {r:9, c:14}, {r:9, c:13}, {r:9, c:12}, {r:9, c:11}, {r:9, c:10}, 
+            {r:10, c:9}, {r:11, c:9}, {r:12, c:9}, {r:13, c:9}, {r:14, c:9}, {r:15, c:9}, 
+            {r:15, c:8}, {r:15, c:7}, 
+            {r:14, c:7}, {r:13, c:7}, {r:12, c:7}, {r:11, c:7}, {r:10, c:7}, 
+            {r:9, c:6}, {r:9, c:5}, {r:9, c:4}, {r:9, c:3}, {r:9, c:2}, {r:9, c:1}, 
+            {r:8, c:1}, {r:7, c:1} 
+        ];
+
+        const victoryRoads = {
+            red: [{r:8,c:2}, {r:8,c:3}, {r:8,c:4}, {r:8,c:5}, {r:8,c:6}, {r:8,c:7}],
+            green: [{r:2,c:8}, {r:3,c:8}, {r:4,c:8}, {r:5,c:8}, {r:6,c:8}, {r:7,c:8}],
+            yellow: [{r:8,c:14}, {r:8,c:13}, {r:8,c:12}, {r:8,c:11}, {r:8,c:10}, {r:8,c:9}],
+            blue: [{r:14,c:8}, {r:13,c:8}, {r:12,c:8}, {r:11,c:8}, {r:10,c:8}, {r:9,c:8}]
+        };
+
+        function initGameEngine() {
+            generateBoardVisuals();
+            createPlayers();
+            createTokens();
+            updateTurnUI();
+            
+            // Mouse Interaction for 3D Board
+            const scene = document.getElementById('scene');
+            const wrapper = document.getElementById('board-wrapper');
+            let isDown = false, startX, startY, rotX = 50, rotZ = 0;
+
+            scene.addEventListener('mousedown', e => { isDown = true; startX = e.clientX; startY = e.clientY; });
+            document.addEventListener('mouseup', () => isDown = false);
+            document.addEventListener('mousemove', e => {
+                if(!isDown) return;
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                rotZ -= dx * 0.3;
+                rotX += dy * 0.3;
+                rotX = Math.max(10, Math.min(80, rotX));
+                wrapper.style.transform = `rotateX(${rotX}deg) rotateZ(${rotZ}deg)`;
+                startX = e.clientX; startY = e.clientY;
+            });
+        }
+
+        function generateBoardVisuals() {
+            const board = document.getElementById('board');
+            createZone('home-area home-red', 1, 1);
+            createZone('home-area home-green', 1, 10);
+            createZone('home-area home-blue', 10, 1);
+            createZone('home-area home-yellow', 10, 10);
+
+            for(let r=1; r<=15; r++) {
+                for(let c=1; c<=15; c++) {
+                    // Skip Home zones and Center
+                    if ((r<=6 && c<=6) || (r<=6 && c>=10) || (r>=10 && c<=6) || (r>=10 && c>=10) || (r>=7 && r<=9 && c>=7 && c<=9)) continue;
+
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.style.gridRow = r;
+                    cell.style.gridColumn = c;
+
+                    // Safe Zones
+                    if((r==7 && c==3) || (r==3 && c==9) || (r==9 && c==13) || (r==13 && c==7) || (r==7 && c==14) || (r==14 && c==9) || (r==9 && c==2) || (r==2 && c==7)) {
+                        cell.classList.add('safe-star');
+                    }
+                    // Start arrows
+                    if(r==7 && c==2) cell.style.background = 'var(--red)';
+                    if(r==2 && c==9) cell.style.background = 'var(--green)';
+                    if(r==9 && c==14) cell.style.background = 'var(--yellow)';
+                    if(r==14 && c==7) cell.style.background = 'var(--blue)';
+
+                    // Colored Paths
+                    if(r==8 && c>1 && c<7) cell.classList.add('path-red');
+                    if(c==8 && r>1 && r<7) cell.classList.add('path-green');
+                    if(r==8 && c>9 && c<15) cell.classList.add('path-yellow');
+                    if(c==8 && r>9 && r<15) cell.classList.add('path-blue');
+
+                    board.appendChild(cell);
+                }
+            }
+        }
+
+        function createZone(cls, r, c) {
+            const d = document.createElement('div');
+            d.className = cls;
+            d.style.gridRow = `${r} / span 6`;
+            d.style.gridColumn = `${c} / span 6`;
+            document.getElementById('board').appendChild(d);
+        }
+
+        function createPlayers() {
+            const colorOrder = ['red', 'green', 'yellow', 'blue'];
+            
+            if (gameState.mode === 'ai') {
+                const userColor = setup.aiUserColor;
+                const userName = document.getElementById('player-name-ai').value || "Player";
+                
+                // Determine which indices are active
+                // Logic: User + next N colors
+                const userIdx = colorOrder.indexOf(userColor);
+                
+                colorOrder.forEach((col, idx) => {
+                    let isActive = false;
+                    let isHuman = false;
+                    let name = "Bot " + (col.charAt(0).toUpperCase() + col.slice(1));
+
+                    // Calculate distance from user to determine if this bot plays
+                    let dist = (idx - userIdx + 4) % 4;
+
+                    if (col === userColor) {
+                        isActive = true;
+                        isHuman = true;
+                        name = userName;
+                    } else if (dist <= setup.aiCount && dist !== 0) {
+                        isActive = true;
+                    }
+
+                    if (isActive) {
+                        addPlayerToGame(col, name, isHuman);
+                    }
+                });
+            } else {
+                // Multiplayer Logic
+                colorOrder.forEach(col => {
+                    if (setup.multiColors.includes(col)) {
+                        addPlayerToGame(col, "Player " + col.toUpperCase(), true); // All are human
+                    }
+                });
+            }
+        }
+
+        function addPlayerToGame(col, name, isHuman) {
+            gameState.players.push({
+                id: col,
+                name: name,
+                isHuman: isHuman,
+                tokens: [0, 0, 0, 0], 
+                offset: config.map[col].startIdx,
+                colorCode: `var(--${col})`
+            });
+        }
+
+        function createTokens() {
+            const board = document.getElementById('board');
+            gameState.players.forEach(p => {
+                p.tokens.forEach((t, i) => {
+                    const token = document.createElement('div');
+                    token.className = `token ${p.id}`;
+                    token.id = `${p.id}-token-${i}`;
+                    token.style.background = p.colorCode; 
+                    token.onclick = () => handleTokenClick(p.id, i);
+                    board.appendChild(token);
+                });
+                // Initial placement in home
+                moveTokenVisuals(p, 0, 0); 
+                moveTokenVisuals(p, 1, 0);
+                moveTokenVisuals(p, 2, 0);
+                moveTokenVisuals(p, 3, 0);
+            });
+        }
+
+        // --- GAMEPLAY LOOP ---
+
+        function updateTurnUI() {
+            const p = gameState.players[gameState.turnIndex];
+            document.getElementById('turn-text').innerText = `${p.name}'s Turn`;
+            document.getElementById('turn-dot').style.backgroundColor = p.colorCode;
+            document.getElementById('turn-dot').style.boxShadow = `0 0 10px ${p.colorCode}`;
+            
+            const rollBtn = document.getElementById('roll-btn');
+            
+            // In hotseat, we simply check isHuman (which is true for all)
+            // But we need to ensure AI logic only triggers if isHuman is false
+            if (p.isHuman) {
+                rollBtn.disabled = false;
+                rollBtn.innerText = "ROLL DICE";
+                commentary(`Your turn, ${p.name}.`);
+            } else {
+                rollBtn.disabled = true;
+                rollBtn.innerText = "THINKING...";
+                commentary(`${p.name} is thinking...`);
+                setTimeout(aiRoll, 1500);
+            }
+        }
+
+        function humanRoll() {
+            if (gameState.waitingForMove) return;
+            performRoll();
+        }
+
+        function aiRoll() {
+            performRoll();
+        }
+
+        function performRoll() {
+            const cube = document.getElementById('dice-cube');
+            document.getElementById('roll-btn').disabled = true;
+            cube.classList.add('rolling-anim');
+
+            setTimeout(() => {
+                const val = Math.floor(Math.random() * 6) + 1;
+                gameState.diceValue = val;
+                
+                cube.classList.remove('rolling-anim');
+                
+                let rx = 0, ry = 0;
+                if(val===1) { rx=0; ry=0; }
+                if(val===2) { rx=0; ry=-90; }
+                if(val===3) { rx=0; ry=-180; }
+                if(val===4) { rx=0; ry=90; }
+                if(val===5) { rx=-90; ry=0; }
+                if(val===6) { rx=90; ry=0; }
+                
+                const rotations = 720; 
+                cube.style.transform = `rotateX(${rx + rotations}deg) rotateY(${ry + rotations}deg)`;
+
+                if (val === 6) {
+                    showOverlay("GBAM! 6!");
+                    fireConfetti();
+                    commentary("GBAM! A massive 6! The ancestors are with you.");
+                } else {
+                    commentary(`Rolled a ${val}.`);
+                }
+
+                setTimeout(() => checkMoves(val), 800); 
+            }, 600);
+        }
+
+        function showOverlay(text) {
+            const el = document.getElementById('main-overlay');
+            el.innerText = text;
+            el.style.transform = "translate(-50%, -50%) scale(1)";
+            setTimeout(() => {
+                el.style.transform = "translate(-50%, -50%) scale(0)";
+            }, 1500);
+        }
+
+        // --- MOVE LOGIC ---
+
+        function checkMoves(roll) {
+            const p = gameState.players[gameState.turnIndex];
+            let moveables = [];
+            
+            p.tokens.forEach((pos, idx) => {
+                if (pos === 0) {
+                    if (roll === 6) moveables.push(idx); 
+                } else if (pos < 57) {
+                    if (pos + roll <= 57) moveables.push(idx);
+                }
+            });
+
+            if (moveables.length === 0) {
+                commentary("No moves possible. O ma se o.");
+                setTimeout(nextTurn, 1000);
+            } else {
+                if (p.isHuman) {
+                    highlightTokens(p, moveables);
+                } else {
+                    setTimeout(() => aiDecide(p, moveables, roll), 1000);
+                }
+            }
+        }
+
+        function highlightTokens(player, indices) {
+            gameState.waitingForMove = true;
+            indices.forEach(i => {
+                const t = document.getElementById(`${player.id}-token-${i}`);
+                t.classList.add('active-turn');
+            });
+            commentary("Select a piece to move.");
+        }
+
+        function handleTokenClick(pid, tid) {
+            if (!gameState.waitingForMove) return;
+            const p = gameState.players[gameState.turnIndex];
+            if (p.id !== pid) return; // Cannot move others
+
+            const t = document.getElementById(`${pid}-token-${tid}`);
+            if (t.classList.contains('active-turn')) {
+                executeMove(p, tid);
+            }
+        }
+
+        function aiDecide(player, moveables, roll) {
+            // Simple AI Priority: Capture > Bring Out > Score > Advance
+            let chosen = moveables[0];
+            
+            // Prefer bring out
+            const homeMover = moveables.find(i => player.tokens[i] === 0);
+            if (homeMover !== undefined) chosen = homeMover;
+            
+            executeMove(player, chosen);
+        }
+
+        function executeMove(player, tokenIdx) {
+            document.querySelectorAll('.active-turn').forEach(el => el.classList.remove('active-turn'));
+            gameState.waitingForMove = false;
+
+            const currentPos = player.tokens[tokenIdx];
+            let newPos = currentPos + gameState.diceValue;
+            
+            // Rule: 6 brings out piece to start (1)
+            if (currentPos === 0) newPos = 1;
+
+            // Animate
+            player.tokens[tokenIdx] = newPos;
+            moveTokenVisuals(player, tokenIdx, newPos);
+
+            // --- CAPTURE / DISPLACEMENT LOGIC ---
+            let captured = false;
+            
+            // Only check collision if we are on the main track (not home base 0, not victory road >51)
+            if (newPos > 0 && newPos < 52) { 
+                const myAbs = getAbsolutePos(player.offset, newPos);
+                
+                // Check against all enemies
+                gameState.players.forEach(opp => {
+                    if (opp.id !== player.id) {
+                        opp.tokens.forEach((opos, oidx) => {
+                            if (opos > 0 && opos < 52) {
+                                const oppAbs = getAbsolutePos(opp.offset, opos);
+                                
+                                if (myAbs === oppAbs) {
+                                    // Collision detected! Check if Safe.
+                                    if (!isSafeZone(myAbs)) {
+                                        // CAPTURE!
+                                        captured = true;
+                                        commentary(`CHOP! ${player.name} sent ${opp.name} home!`);
+                                        showOverlay("CHOP!");
+                                        
+                                        // Visual Effect on captured piece
+                                        const oppTokenEl = document.getElementById(`${opp.id}-token-${oidx}`);
+                                        oppTokenEl.classList.add('kick-anim');
+                                        
+                                        // Reset Logic after animation
+                                        setTimeout(() => {
+                                            oppTokenEl.classList.remove('kick-anim');
+                                            opp.tokens[oidx] = 0; // Return to 0
+                                            moveTokenVisuals(opp, oidx, 0); // Visual return
+                                        }, 500);
+                                    }
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+
+            // Win Condition
+            if (player.tokens.every(t => t === 57)) {
+                commentary(`WINNER! ${player.name} has conquered Lalasticlala Snake Land!`);
+                showOverlay(`${player.name} WINS!`);
+                fireConfetti();
+                return; 
+            }
+
+            // Next Turn Logic
+            // If captured, you often get a bonus roll in some variations, but standard simple Ludo often just counts 6s.
+            // We will stick to 6 = roll again.
+            
+            if (gameState.diceValue === 6) {
+                gameState.sixCount++;
+                if (gameState.sixCount === 3) {
+                    commentary("Three 6s? Haba! Turn forfeited.");
+                    gameState.sixCount = 0;
+                    nextTurn();
+                } else {
+                    commentary("Roll again!");
+                    // Delay for AI
+                    if(!player.isHuman) setTimeout(aiRoll, 1000);
+                    else document.getElementById('roll-btn').disabled = false;
+                }
+            } else {
+                gameState.sixCount = 0;
+                nextTurn();
+            }
+        }
+
+        function nextTurn() {
+            gameState.turnIndex = (gameState.turnIndex + 1) % gameState.players.length;
+            updateTurnUI();
+        }
+
+        // --- HELPERS ---
+
+        function getAbsolutePos(offset, step) {
+            return ((offset + step - 1) % 52) + 1;
+        }
+
+        function isSafeZone(absIndex) {
+            // Standard Ludo Safe Zones (Global Indices)
+            const safes = [1, 9, 14, 22, 27, 35, 40, 48];
+            return safes.includes(absIndex);
+        }
+
+        function moveTokenVisuals(player, idx, step) {
+            const el = document.getElementById(`${player.id}-token-${idx}`);
+            let r, c;
+
+            if (step === 0) {
+                // Home Base Positions
+                const bases = {
+                    red: [{r:2,c:2}, {r:2,c:3}, {r:3,c:2}, {r:3,c:3}],
+                    green: [{r:2,c:11}, {r:2,c:12}, {r:3,c:11}, {r:3,c:12}],
+                    yellow: [{r:11,c:11}, {r:11,c:12}, {r:12,c:11}, {r:12,c:12}],
+                    blue: [{r:11,c:2}, {r:11,c:3}, {r:12,c:2}, {r:12,c:3}]
+                };
+                const coord = bases[player.id][idx];
+                r = coord.r; c = coord.c;
+            } else if (step === 57) {
+                // Center (Victory)
+                r = 8; c = 8;
+                // Add jitter so they don't stack perfectly
+                el.style.transform = `translate(-50%, -50%) translate3d(${(Math.random()*10)-5}px, ${(Math.random()*10)-5}px, 10px)`;
+            } else if (step > 51) {
+                // Victory Road
+                const vStep = step - 52;
+                const path = victoryRoads[player.id][vStep];
+                r = path.r; c = path.c;
+                el.style.transform = `translate(-50%, -50%)`; // Reset jitter
+            } else {
+                // Main Track
+                const abs = getAbsolutePos(player.offset, step);
+                const coord = pathCoords[abs];
+                r = coord.r; c = coord.c;
+                el.style.transform = `translate(-50%, -50%)`; // Reset jitter
+            }
+
+            // --- ALIGNMENT FIX ---
+            // Board is 15x15.
+            // 1 unit = 100% / 15 = 6.666%
+            // To Center: (Index - 1) * 6.666% + (6.666% / 2)
+            const cellSize = 100/15;
+            const top = (r - 1) * cellSize + (cellSize/2);
+            const left = (c - 1) * cellSize + (cellSize/2);
+
+            el.style.top = `${top}%`;
+            el.style.left = `${left}%`;
+        }
+
+        function commentary(msg) {
+            const box = document.getElementById('commentary-box');
+            box.style.opacity = 0;
+            setTimeout(() => {
+                box.innerText = msg;
+                box.style.opacity = 1;
+            }, 200);
+        }
+
+        function fireConfetti() {
+            const canvas = document.getElementById('confetti-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            const particles = [];
+            for(let i=0; i<100; i++) {
+                particles.push({
+                    x: canvas.width/2, y: canvas.height/2,
+                    vx: (Math.random()-0.5)*15, vy: (Math.random()-0.5)*15,
+                    color: `hsl(${Math.random()*360}, 100%, 50%)`,
+                    life: 100
+                });
+            }
+
+            function update() {
+                ctx.clearRect(0,0,canvas.width,canvas.height);
+                let alive = false;
+                particles.forEach(p => {
+                    if(p.life > 0) {
+                        p.x += p.vx; p.y += p.vy; p.vy += 0.2; 
+                        p.life--;
+                        ctx.fillStyle = p.color;
+                        ctx.fillRect(p.x, p.y, 8, 8);
+                        alive = true;
+                    }
+                });
+                if(alive) requestAnimationFrame(update);
+                else ctx.clearRect(0,0,canvas.width,canvas.height);
+            }
+            update();
+        }
+    </script>
+</body>
+</html>

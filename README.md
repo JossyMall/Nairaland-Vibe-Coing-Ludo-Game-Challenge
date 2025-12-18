@@ -4,7 +4,17 @@
 ![CSS3](https://img.shields.io/badge/css3-%231572B6.svg?style=for-the-badge&logo=css3&logoColor=white)
 ![JavaScript](https://img.shields.io/badge/javascript-%23323330.svg?style=for-the-badge&logo=javascript&logoColor=%23F7DF1E)
 
+> 🚀 **Official Entry: Nairaland Forum Ludo Game Vibe Coding Challenge** > 👨‍💻 **Developer:** **mushroomfarm** (Nairaland)
+
 **NairalandLudo** is a fully interactive, browser-based 3D Ludo game inspired by the classic board game. Built entirely with vanilla HTML, CSS, and JavaScript, it features a physics-simulated 3D dice, a rotatable board, intelligent AI opponents, and a robust local multiplayer mode.
+
+---
+
+## 🙌 Appreciation
+
+A huge shoutout to **Seun Osewa** (the founder of Nairaland) for creating the platform that brought us all together.
+
+It is an absolute honour to participate in this coding challenge alongside so many talented developers. **Win or not**, the joy of building this for the culture and contributing to the community is the real prize.
 
 ---
 
@@ -111,5 +121,5 @@ Distributed under the MIT License. See `LICENSE` for more information.
 ---
 
 <p align="center">
-  Built with ❤️ for the Ludo Community
+  Built with ❤️ for the Nairaland Community
 </p>
